@@ -1,0 +1,704 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Witch's Castle Escape - Standalone</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body {
+            overscroll-behavior-y: contain;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #030712; /* gray-950 */
+            color: white;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        /* Custom Animations */
+        @keyframes bounce-slight {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .animate-bounce-slight {
+            animation: bounce-slight 2s infinite;
+        }
+        /* Scrollbar hide for clean look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // --- 1. Icons (SVG Components) ---
+        const IconBase = ({ d, color, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {d}
+            </svg>
+        );
+
+        const Icons = {
+            Heart: (props) => <IconBase {...props} d={<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />} />,
+            Candy: (props) => <IconBase {...props} d={<path d="M9.5 7.5 16.5 14.5M3.5 12.5l5-5C9.7 6.3 11 7.6 9.8 8.8l-5 5c-1.2 1.2-2.5-.1-1.3-1.3ZM14.2 15.2l5 5c1.2 1.2 2.5-.1 1.3-1.3l-5-5c-1.2-1.2-2.5.1-1.3 1.3Z" />} />,
+            Flask: (props) => <IconBase {...props} d={<path d="M10 2v7.31M14 2v7.31M8.5 2h7M14 9.3a6.5 6.5 0 1 1-4 0" />} />,
+            Scroll: (props) => <IconBase {...props} d={<path d="M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" />} />,
+            Bag: (props) => <IconBase {...props} d={<><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></>} />,
+            Ghost: (props) => <IconBase {...props} d={<path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8Z"/>} />,
+            Skull: (props) => <IconBase {...props} d={<><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/></>} />,
+            Sprout: (props) => <IconBase {...props} d={<><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></>} />,
+            ArrowUp: (props) => <IconBase {...props} d={<path d="m18 15-6-6-6 6"/>} />,
+            ArrowDown: (props) => <IconBase {...props} d={<path d="m6 9 6 6 6-6"/>} />,
+            ArrowLeft: (props) => <IconBase {...props} d={<path d="m15 18-6-6 6-6"/>} />,
+            ArrowRight: (props) => <IconBase {...props} d={<path d="m9 18 6-6-6-6"/>} />,
+            Keyboard: (props) => <IconBase {...props} d={<><rect width="20" height="16" x="2" y="4" rx="2" ry="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M6 12h.001"/><path d="M10 12h.001"/><path d="M14 12h.001"/><path d="M18 12h.001"/></>} />,
+            Info: (props) => <IconBase {...props} d={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />,
+        };
+
+        // --- 2. Constants & Types ---
+        const CellType = {
+            WALL: 0,
+            PATH: 1,
+            START: 2,
+            EXIT: 3
+        };
+
+        const EntityType = {
+            PLAYER: 'PLAYER',
+            CANDY: 'CANDY',
+            PUMPKIN: 'PUMPKIN',
+            BAT: 'BAT',
+            THORN: 'THORN',
+            POISON: 'POISON',
+            ZOMBIE: 'ZOMBIE',
+        };
+
+        const GameStatus = {
+            START: 'START',
+            PLAYING: 'PLAYING',
+            WON: 'WON',
+            GAME_OVER: 'GAME_OVER'
+        };
+
+        const CONSTANTS = {
+            BOARD_WIDTH: 21,
+            BOARD_HEIGHT: 21,
+            MAX_HEALTH: 5,
+            SCORE_PER_CANDY: 150,
+            DAMAGE_PUMPKIN: 2,
+            DAMAGE_BAT: 1,
+            DAMAGE_THORN: 1,
+            DAMAGE_ZOMBIE: 2,
+            POISON_TICK_STEPS: 5,
+            COST_HEAL: 300,
+            COST_SCROLL: 200,
+            COLORS: {
+                wall: 'bg-slate-900',
+                path: 'bg-slate-800'
+            }
+        };
+
+        // --- 3. Maze Generator Logic ---
+        const shuffle = (array) => {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        };
+
+        const generateMaze = () => {
+            const h = CONSTANTS.BOARD_HEIGHT;
+            const w = CONSTANTS.BOARD_WIDTH;
+            const grid = Array(h).fill(null).map(() => Array(w).fill(CellType.WALL));
+            const start = { x: 1, y: 1 };
+
+            const carve = (x, y) => {
+                grid[y][x] = CellType.PATH;
+                const directions = shuffle([
+                    { dx: 0, dy: -2 }, { dx: 0, dy: 2 },
+                    { dx: -2, dy: 0 }, { dx: 2, dy: 0 }
+                ]);
+
+                for (const { dx, dy } of directions) {
+                    const nx = x + dx, ny = y + dy;
+                    if (ny > 0 && ny < h - 1 && nx > 0 && nx < w - 1 && grid[ny][nx] === CellType.WALL) {
+                        grid[y + dy / 2][x + dx / 2] = CellType.PATH;
+                        carve(nx, ny);
+                    }
+                }
+            };
+
+            carve(start.x, start.y);
+
+            // Add Loops
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    if (grid[y][x] === CellType.WALL) {
+                        let connectedPaths = 0;
+                        if (grid[y-1][x] === CellType.PATH) connectedPaths++;
+                        if (grid[y+1][x] === CellType.PATH) connectedPaths++;
+                        if (grid[y][x-1] === CellType.PATH) connectedPaths++;
+                        if (grid[y][x+1] === CellType.PATH) connectedPaths++;
+                        if (connectedPaths >= 2 && Math.random() < 0.08) {
+                            grid[y][x] = CellType.PATH;
+                        }
+                    }
+                }
+            }
+
+            // Find Exit
+            let exit = { x: w - 2, y: h - 2 };
+            if (grid[exit.y][exit.x] === CellType.WALL) {
+                for(let y = h - 2; y > 0; y--) {
+                    for(let x = w - 2; x > 0; x--) {
+                        if (grid[y][x] === CellType.PATH) {
+                            exit = { x, y };
+                            y = 0; x = 0;
+                        }
+                    }
+                }
+            }
+
+            grid[start.y][start.x] = CellType.START;
+            grid[exit.y][exit.x] = CellType.EXIT;
+            return { grid, start, exit };
+        };
+
+        const findEmptyPositions = (grid, count, exclude) => {
+            const empties = [];
+            const excludeSet = new Set(exclude.map(p => `${p.x},${p.y}`));
+            for (let y = 0; y < grid.length; y++) {
+                for (let x = 0; x < grid[0].length; x++) {
+                    if (grid[y][x] === CellType.PATH && !excludeSet.has(`${x},${y}`)) {
+                        empties.push({ x, y });
+                    }
+                }
+            }
+            return shuffle(empties).slice(0, count);
+        };
+
+        // --- 4. Main Game Component ---
+        const Game = () => {
+            // State
+            const [grid, setGrid] = useState([]);
+            const [playerPos, setPlayerPos] = useState({ x: 1, y: 1 });
+            const [entities, setEntities] = useState([]);
+            const [status, setStatus] = useState(GameStatus.START);
+            const [score, setScore] = useState(0);
+            const [health, setHealth] = useState(CONSTANTS.MAX_HEALTH);
+            const [level, setLevel] = useState(1);
+            const [magicScrolls, setMagicScrolls] = useState(1);
+            const [isPoisoned, setIsPoisoned] = useState(false);
+            const [stepsSincePoison, setStepsSincePoison] = useState(0);
+            const [showShop, setShowShop] = useState(false);
+            const [message, setMessage] = useState("");
+            const [visited, setVisited] = useState(new Set());
+
+            // Initialize Level
+            const startLevel = useCallback((lvl) => {
+                const { grid: newGrid, start, exit } = generateMaze();
+                const emptySpots = findEmptyPositions(newGrid, 40 + Math.floor(lvl * 2), [start, exit]);
+                
+                const newEntities = [];
+                let idx = 0;
+                let idCounter = 0;
+                const addEntity = (type, count) => {
+                    for (let i = 0; i < count && idx < emptySpots.length; i++) {
+                        newEntities.push({
+                            id: `${type}-${idCounter++}`,
+                            type,
+                            position: emptySpots[idx++],
+                            isAlive: true
+                        });
+                    }
+                };
+
+                addEntity(EntityType.CANDY, 8);
+                addEntity(EntityType.PUMPKIN, 4 + lvl);
+                addEntity(EntityType.BAT, 3 + Math.floor(lvl/2));
+                addEntity(EntityType.ZOMBIE, 2 + Math.floor(lvl/2));
+                addEntity(EntityType.THORN, 4 + lvl);
+                addEntity(EntityType.POISON, 2 + Math.floor(lvl/3));
+
+                setGrid(newGrid);
+                setPlayerPos(start);
+                setEntities(newEntities);
+                setVisited(new Set([`${start.x},${start.y}`]));
+                setStatus(GameStatus.PLAYING);
+                setIsPoisoned(false);
+                setStepsSincePoison(0);
+                setMessage(`Level ${lvl}: Escape!`);
+                setTimeout(() => setMessage(""), 3000);
+            }, []);
+
+            const handleStart = () => {
+                setScore(0);
+                setHealth(CONSTANTS.MAX_HEALTH);
+                setMagicScrolls(1);
+                setLevel(1);
+                startLevel(1);
+            };
+
+            // Logic Helpers
+            const takeDamage = (amount, cause) => {
+                setHealth(h => {
+                    const next = h - amount;
+                    if (next <= 0) {
+                        setStatus(GameStatus.GAME_OVER);
+                        setMessage(`Killed by ${cause}`);
+                    }
+                    return next;
+                });
+            };
+
+            const curePoison = () => {
+                if (isPoisoned) {
+                    setIsPoisoned(false);
+                    setStepsSincePoison(0);
+                    setMessage("Cured!");
+                }
+            };
+
+            // Enemy AI
+            const moveEnemies = (targetPos) => {
+                setEntities(prev => prev.map(e => {
+                    if (!e.isAlive) return e;
+                    let { x, y } = e.position;
+                    let moved = false;
+
+                    if (e.type === EntityType.BAT) {
+                         const moves = [{x:0,y:-1}, {x:0,y:1}, {x:-1,y:0}, {x:1,y:0}];
+                         const move = moves[Math.floor(Math.random() * moves.length)];
+                         x += move.x; y += move.y;
+                         moved = true;
+                    } else if (e.type === EntityType.ZOMBIE) {
+                        // 60% chance to move (slow)
+                        if (Math.random() > 0.4) {
+                            const dx = targetPos.x - x;
+                            const dy = targetPos.y - y;
+                            // Simple tracking
+                            if (Math.abs(dx) > Math.abs(dy)) {
+                                x += dx > 0 ? 1 : -1;
+                            } else {
+                                y += dy > 0 ? 1 : -1;
+                            }
+                            moved = true;
+                        }
+                    }
+
+                    if (moved && y >= 0 && y < CONSTANTS.BOARD_HEIGHT && x >= 0 && x < CONSTANTS.BOARD_WIDTH && grid[y][x] !== CellType.WALL) {
+                        return { ...e, position: { x, y } };
+                    }
+                    return e;
+                }));
+            };
+
+            // Collision Check
+            const checkCollisions = useCallback((currentPos) => {
+                const collidedEntity = entities.find(e => e.isAlive && e.position.x === currentPos.x && e.position.y === currentPos.y);
+                
+                if (collidedEntity) {
+                    let damage = 0;
+                    let cause = "";
+                    let cure = false;
+                    let shouldRemove = false;
+
+                    // Note: PUMPKIN and THORN damage is applied during movePlayer (step events)
+                    // This function handles "Entity" overlap (Candies, Enemies, Poison)
+                    
+                    switch (collidedEntity.type) {
+                        case EntityType.CANDY:
+                            setScore(s => s + CONSTANTS.SCORE_PER_CANDY);
+                            cure = true;
+                            shouldRemove = true;
+                            break;
+                        case EntityType.BAT:
+                            damage = CONSTANTS.DAMAGE_BAT;
+                            cause = "Bat";
+                            shouldRemove = true;
+                            break;
+                        case EntityType.ZOMBIE:
+                            damage = CONSTANTS.DAMAGE_ZOMBIE;
+                            cause = "Zombie";
+                            shouldRemove = true;
+                            break;
+                        case EntityType.POISON:
+                            if (!isPoisoned) {
+                                setIsPoisoned(true);
+                                setStepsSincePoison(0);
+                                setMessage("Poisoned! Find Candy!");
+                            }
+                            shouldRemove = true;
+                            break;
+                    }
+
+                    if (shouldRemove) {
+                        setEntities(prev => prev.map(e => e.id === collidedEntity.id ? { ...e, isAlive: false } : e));
+                    }
+
+                    if (cure) curePoison();
+                    
+                    if (damage > 0) {
+                        takeDamage(damage, cause);
+                        setMessage(`Hit by ${cause}!`);
+                    }
+                }
+
+                if (grid[currentPos.y][currentPos.x] === CellType.EXIT) {
+                    setStatus(GameStatus.WON);
+                }
+            }, [grid, isPoisoned, entities]);
+
+            // Effects
+            useEffect(() => {
+                if (status === GameStatus.PLAYING) checkCollisions(playerPos);
+            }, [playerPos, entities, status, checkCollisions]);
+
+            // Actions
+            const useMagicScroll = () => {
+                if (magicScrolls <= 0 || status !== GameStatus.PLAYING) {
+                    setMessage("No Scrolls!");
+                    return;
+                }
+                let hits = 0;
+                setEntities(prev => prev.map(e => {
+                    if (!e.isAlive) return e;
+                    const dx = Math.abs(e.position.x - playerPos.x);
+                    const dy = Math.abs(e.position.y - playerPos.y);
+                    if (dx <= 1 && dy <= 1 && [EntityType.PUMPKIN, EntityType.THORN, EntityType.BAT, EntityType.ZOMBIE].includes(e.type)) {
+                        hits++;
+                        return { ...e, isAlive: false };
+                    }
+                    return e;
+                }));
+                if (hits > 0) {
+                    setMagicScrolls(s => s - 1);
+                    setMessage("BOOM! Hazards cleared.");
+                } else {
+                    setMessage("Nothing nearby.");
+                }
+            };
+
+            const buyItem = (item) => {
+                if (item === 'HEAL') {
+                    if (score >= CONSTANTS.COST_HEAL) {
+                        if (health >= CONSTANTS.MAX_HEALTH) { setMessage("Health Full"); return; }
+                        setScore(s => s - CONSTANTS.COST_HEAL);
+                        setHealth(h => Math.min(h + 2, CONSTANTS.MAX_HEALTH));
+                        setMessage("Healed.");
+                    } else setMessage("Need more points.");
+                } else {
+                    if (score >= CONSTANTS.COST_SCROLL) {
+                        setScore(s => s - CONSTANTS.COST_SCROLL);
+                        setMagicScrolls(s => s + 1);
+                        setMessage("Scroll bought.");
+                    } else setMessage("Need more points.");
+                }
+            };
+
+            const movePlayer = (dx, dy) => {
+                if (status !== GameStatus.PLAYING || showShop) return;
+                const nx = playerPos.x + dx, ny = playerPos.y + dy;
+                if (nx < 0 || nx >= CONSTANTS.BOARD_WIDTH || ny < 0 || ny >= CONSTANTS.BOARD_HEIGHT) return;
+                if (grid[ny][nx] === CellType.WALL) return;
+
+                // Hazards logic (Thorns and Pumpkins trigger on step)
+                const pumpkin = entities.find(e => e.isAlive && e.type === EntityType.PUMPKIN && e.position.x === nx && e.position.y === ny);
+                if (pumpkin) {
+                    takeDamage(CONSTANTS.DAMAGE_PUMPKIN, "Explosion");
+                    setMessage("Pumpkin Exploded!");
+                    setEntities(prev => prev.map(e => e.id === pumpkin.id ? { ...e, isAlive: false } : e));
+                }
+
+                const thorn = entities.find(e => e.isAlive && e.type === EntityType.THORN && e.position.x === nx && e.position.y === ny);
+                if (thorn) {
+                    takeDamage(CONSTANTS.DAMAGE_THORN, "Thorns");
+                    setMessage("Ouch! Thorns!");
+                }
+
+                if (isPoisoned) {
+                    const s = stepsSincePoison + 1;
+                    setStepsSincePoison(s);
+                    if (s % CONSTANTS.POISON_TICK_STEPS === 0) {
+                        takeDamage(1, "Poison");
+                        setMessage("Poison hurts...");
+                    }
+                }
+
+                setPlayerPos({ x: nx, y: ny });
+                setVisited(prev => {
+                    const n = new Set(prev);
+                    for(let oy=-1; oy<=1; oy++) for(let ox=-1; ox<=1; ox++) n.add(`${nx+ox},${ny+oy}`);
+                    return n;
+                });
+                moveEnemies({ x: nx, y: ny });
+            };
+
+            // Keyboard
+            useEffect(() => {
+                const handleKey = (e) => {
+                    if (showShop) return;
+                    if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') movePlayer(0, -1);
+                    if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') movePlayer(0, 1);
+                    if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') movePlayer(-1, 0);
+                    if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') movePlayer(1, 0);
+                    if(e.key === ' ' || e.key === 'Enter') useMagicScroll();
+                };
+                window.addEventListener('keydown', handleKey);
+                return () => window.removeEventListener('keydown', handleKey);
+            }, [playerPos, status, entities, showShop, isPoisoned]);
+
+            // Render
+            const getIcon = (type) => {
+                switch(type) {
+                    case EntityType.PLAYER: return <span className="text-2xl animate-bounce-slight">🧙‍♀️</span>;
+                    case EntityType.CANDY: return <Icons.Candy className="w-5 h-5 text-pink-400 drop-shadow-md" />;
+                    case EntityType.PUMPKIN: return <span className="text-xl">🎃</span>;
+                    case EntityType.BAT: return <span className="text-xl animate-pulse">🦇</span>;
+                    case EntityType.THORN: return <Icons.Sprout className="w-5 h-5 text-green-700" />;
+                    case EntityType.POISON: return <Icons.Flask className="w-5 h-5 text-purple-500 animate-pulse" />;
+                    case EntityType.ZOMBIE: return <span className="text-xl animate-bounce-slight">🧟</span>;
+                    default: return null;
+                }
+            };
+
+            // Views
+            if (status === GameStatus.START) {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-orange-500 p-4">
+                        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-6 flex flex-col items-center">
+                            <h1 className="text-4xl font-bold mb-2 font-serif tracking-wide">Witch's Castle</h1>
+                            <p className="text-slate-400 mb-6 text-sm text-center italic">Escaping is hard... Survival is harder.</p>
+
+                            <div className="w-full bg-slate-800/50 rounded-lg p-4 mb-6 text-sm border border-slate-700">
+                                <h3 className="text-purple-400 font-bold mb-3 flex items-center gap-2 border-b border-slate-700 pb-2">
+                                    <Icons.Info className="w-4 h-4" /> How to Play
+                                </h3>
+                                
+                                <div className="space-y-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="min-w-[24px] text-center">🧙🏻</div>
+                                        <div>
+                                            <strong className="text-slate-200">Objective:</strong> 
+                                            <p className="text-slate-400 text-xs">Find the Witch (Exit) to escape the maze.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-3">
+                                        <div className="min-w-[24px] text-center"><Icons.Candy className="inline w-4 h-4 text-pink-400"/></div>
+                                        <div>
+                                            <strong className="text-pink-300">Candy:</strong> 
+                                            <p className="text-slate-400 text-xs">Gain Points & Cure Poison.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">🧟</span>
+                                            <div className="leading-3">
+                                                <div className="text-red-400 font-bold text-xs">Zombie</div>
+                                                <div className="text-[10px] text-slate-500">Chases you</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">🦇</span>
+                                            <div className="leading-3">
+                                                <div className="text-red-400 font-bold text-xs">Bat</div>
+                                                <div className="text-[10px] text-slate-500">Moves randomly</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">🎃</span>
+                                            <div className="leading-3">
+                                                <div className="text-orange-400 font-bold text-xs">Pumpkin</div>
+                                                <div className="text-[10px] text-slate-500">Explodes</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Icons.Flask className="w-4 h-4 text-purple-500"/>
+                                            <div className="leading-3">
+                                                <div className="text-purple-400 font-bold text-xs">Poison</div>
+                                                <div className="text-[10px] text-slate-500">Dmg over time</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 mt-3 pt-3 border-t border-slate-700">
+                                        <div className="min-w-[24px] text-center"><Icons.Scroll className="inline w-4 h-4 text-blue-400"/></div>
+                                        <div>
+                                            <strong className="text-blue-300">Magic Scroll (Spacebar):</strong> 
+                                            <p className="text-slate-400 text-xs">Destroys all hazards immediately around you.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onClick={handleStart} className="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold rounded-lg shadow-lg transform hover:scale-[1.02] transition">
+                                ENTER CASTLE
+                            </button>
+                            
+                            <p className="text-slate-600 text-xs mt-4">Use Arrow Keys / WASD to move</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (status === GameStatus.GAME_OVER) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-screen bg-black text-red-600 p-4 text-center">
+                        <Icons.Skull className="w-20 h-20 mb-4 animate-bounce" />
+                        <h2 className="text-4xl font-bold mb-2">GAME OVER</h2>
+                        <p className="text-slate-400 mb-6">{message}</p>
+                        <button onClick={() => setStatus(GameStatus.START)} className="px-6 py-3 border border-red-800 text-red-500 rounded hover:bg-red-900/20">Main Menu</button>
+                    </div>
+                );
+            }
+
+            if (status === GameStatus.WON) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-green-400 p-4 text-center">
+                        <Icons.Ghost className="w-20 h-20 mb-4 animate-pulse" />
+                        <h2 className="text-4xl font-bold mb-4">LEVEL CLEARED!</h2>
+                        <div className="flex gap-4 mb-8">
+                             <button onClick={() => setShowShop(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-700 text-white rounded hover:bg-purple-600"><Icons.Bag /> Shop</button>
+                             <button onClick={() => { setLevel(l => l+1); startLevel(level+1); }} className="px-6 py-2 bg-green-700 hover:bg-green-600 text-white rounded">Next Level</button>
+                        </div>
+                        {showShop && (
+                            <div className="bg-slate-800 p-4 rounded border border-purple-500 max-w-sm w-full mx-auto">
+                                <h3 className="text-white mb-2 font-bold flex gap-2"><Icons.Bag /> Shop ({score} pts)</h3>
+                                <button onClick={() => buyItem('HEAL')} className="w-full flex justify-between p-2 hover:bg-slate-700 rounded mb-2">
+                                    <span className="flex gap-2 text-red-300"><Icons.Heart /> Heal</span>
+                                    <span className="text-orange-400">{CONSTANTS.COST_HEAL}</span>
+                                </button>
+                                <button onClick={() => buyItem('SCROLL')} className="w-full flex justify-between p-2 hover:bg-slate-700 rounded">
+                                    <span className="flex gap-2 text-blue-300"><Icons.Scroll /> Scroll</span>
+                                    <span className="text-orange-400">{CONSTANTS.COST_SCROLL}</span>
+                                </button>
+                                <button onClick={() => setShowShop(false)} className="mt-4 text-sm text-slate-400 underline">Close Shop</button>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            return (
+                <div className={`min-h-screen flex flex-col items-center ${isPoisoned ? 'shadow-[inset_0_0_50px_purple]' : ''}`}>
+                    {/* HUD - Full Width */}
+                    <div className="w-full bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-lg">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="flex justify-between items-center px-4 py-2">
+                                <div>
+                                    <span className="text-xs text-slate-500 block">LEVEL {level}</span>
+                                    <div className="flex items-center gap-1 text-orange-400 font-bold text-xl"><Icons.Candy className="w-4 h-4" /> {score}</div>
+                                </div>
+                                <div className="flex gap-1">
+                                    {isPoisoned && <Icons.Flask className="w-5 h-5 text-purple-500 animate-pulse mr-2" />}
+                                    {Array.from({length: CONSTANTS.MAX_HEALTH}).map((_, i) => (
+                                        <Icons.Heart key={i} className={`w-5 h-5 ${i < health ? 'fill-red-600 text-red-600' : 'text-slate-700'}`} />
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center px-4 py-1 bg-slate-800/50 text-sm">
+                                <span className="text-yellow-200 truncate pr-2 h-6">{message}</span>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowShop(!showShop)} className="p-1 text-purple-300 flex items-center gap-1 bg-slate-700 rounded px-2 hover:bg-slate-600"><Icons.Bag className="w-4 h-4" /> Shop</button>
+                                    <button onClick={useMagicScroll} className="p-1 text-blue-200 flex items-center gap-1 bg-blue-900 rounded px-2 border border-blue-700 hover:bg-blue-800"><Icons.Scroll className="w-4 h-4" /> ({magicScrolls})</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Shop Modal */}
+                    {showShop && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowShop(false)}>
+                            <div className="w-64 bg-slate-800 border-2 border-purple-500 shadow-2xl rounded p-4" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between text-white mb-2"><strong>Shop</strong> <button onClick={() => setShowShop(false)}>✕</button></div>
+                                <button onClick={() => buyItem('HEAL')} className="w-full flex justify-between p-2 bg-slate-700 mb-2 rounded hover:bg-slate-600 transition"><span className="text-red-300">Heal</span> <span className="text-orange-400">{CONSTANTS.COST_HEAL}</span></button>
+                                <button onClick={() => buyItem('SCROLL')} className="w-full flex justify-between p-2 bg-slate-700 rounded hover:bg-slate-600 transition"><span className="text-blue-300">Scroll</span> <span className="text-orange-400">{CONSTANTS.COST_SCROLL}</span></button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Main Game Layout */}
+                    <div className="flex-1 flex flex-col md:flex-row items-center justify-center w-full max-w-5xl gap-8 p-4">
+                        
+                        {/* Grid */}
+                        <div className="relative">
+                            <div className="grid gap-[1px] bg-slate-900 border-4 border-slate-800 shadow-2xl" 
+                                style={{ 
+                                    gridTemplateColumns: `repeat(${CONSTANTS.BOARD_WIDTH}, minmax(0, 1fr))`,
+                                    width: 'min(90vw, 500px)',
+                                    aspectRatio: '1/1'
+                                }}>
+                                {grid.map((row, y) => row.map((cell, x) => {
+                                    const dist = Math.abs(x - playerPos.x) + Math.abs(y - playerPos.y);
+                                    const isVisible = dist <= 2 || visited.has(`${x},${y}`);
+                                    
+                                    if (!isVisible) return <div key={`${x}-${y}`} className="bg-black" />;
+                                    
+                                    const isWall = cell === CellType.WALL;
+                                    const content = (playerPos.x === x && playerPos.y === y) 
+                                        ? getIcon(EntityType.PLAYER) 
+                                        : (entities.find(e => e.isAlive && e.position.x === x && e.position.y === y)?.type)
+                                            ? getIcon(entities.find(e => e.isAlive && e.position.x === x && e.position.y === y).type)
+                                            : (cell === CellType.EXIT ? <span className="text-2xl">🧙🏻</span> : null);
+
+                                    return (
+                                        <div key={`${x}-${y}`} className={`relative flex items-center justify-center ${isWall ? CONSTANTS.COLORS.wall : CONSTANTS.COLORS.path} ${isWall ? 'rounded-[1px]' : ''}`}>
+                                            {isWall && <div className="absolute inset-0 border border-white/5 rounded-[1px]"></div>}
+                                            <div className="z-10">{content}</div>
+                                        </div>
+                                    );
+                                }))}
+                            </div>
+                        </div>
+
+                        {/* Side Controls */}
+                        <div className="flex flex-col gap-6 items-center">
+                            
+                            {/* Instruction Box */}
+                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-sm text-slate-300 hidden md:block w-48">
+                                <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Keyboard className="w-4 h-4"/> Controls</h3>
+                                <div className="flex justify-between mb-1"><span>Move</span> <span className="text-white">Arrows / WASD</span></div>
+                                <div className="flex justify-between"><span>Action</span> <span className="text-white">Space / Enter</span></div>
+                            </div>
+
+                            {/* D-Pad for Mouse Users (Side) */}
+                            <div className="grid grid-cols-3 gap-2 p-4 bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
+                                <div></div>
+                                <button className="bg-slate-700 hover:bg-slate-600 p-4 rounded shadow active:scale-95 transition" onClick={() => movePlayer(0, -1)} aria-label="Up"><Icons.ArrowUp /></button>
+                                <div></div>
+                                <button className="bg-slate-700 hover:bg-slate-600 p-4 rounded shadow active:scale-95 transition" onClick={() => movePlayer(-1, 0)} aria-label="Left"><Icons.ArrowLeft /></button>
+                                <button className="bg-slate-700 hover:bg-slate-600 p-4 rounded shadow active:scale-95 transition" onClick={() => movePlayer(0, 1)} aria-label="Down"><Icons.ArrowDown /></button>
+                                <button className="bg-slate-700 hover:bg-slate-600 p-4 rounded shadow active:scale-95 transition" onClick={() => movePlayer(1, 0)} aria-label="Right"><Icons.ArrowRight /></button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Game />);
+    </script>
+</body>
+</html>
